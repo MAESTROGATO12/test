@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Aventura 2D</title>
+<title>Aventura 2D Completa</title>
 <style>
-body { margin: 0; overflow: hidden; background: #87CEEB; }
+body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; }
 canvas { display: block; margin: 0 auto; background: #4CAF50; border: 3px solid #333; }
 #message {
   position: absolute;
@@ -14,47 +14,63 @@ canvas { display: block; margin: 0 auto; background: #4CAF50; border: 3px solid 
   background: rgba(0,0,0,0.7);
   color: white;
   padding: 5px 15px;
-  font-family: sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   border-radius: 5px;
   display: none;
+}
+#inventory {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 5px 10px;
+  font-size: 16px;
+  border-radius: 5px;
 }
 </style>
 </head>
 <body>
 <div id="message"></div>
+<div id="inventory">Inventario: </div>
 <canvas id="game" width="700" height="500"></canvas>
 <script>
 // --- CANVAS ---
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-// --- MENSAJE ---
+// --- MENSAJES E INVENTARIO ---
 const messageBox = document.getElementById('message');
-function showMessage(text) {
+const inventoryBox = document.getElementById('inventory');
+let inventory = [];
+
+function showMessage(text){
   messageBox.innerText = text;
   messageBox.style.display = 'block';
-  setTimeout(() => messageBox.style.display = 'none', 2000);
+  setTimeout(()=>messageBox.style.display='none',2000);
+}
+
+function updateInventory(){
+  inventoryBox.innerText = "Inventario: " + (inventory.length ? inventory.join(", ") : "Vacío");
 }
 
 // --- JUGADOR ---
-const player = {
-  x: 50, y: 50, w: 30, h: 30, color: 'blue', speed: 3
-};
+const player = { x:50, y:50, w:30, h:30, color:'blue', speed:3 };
 
 // --- TECLAS ---
 const keys = {};
 document.addEventListener('keydown', e => keys[e.key] = true);
 document.addEventListener('keyup', e => keys[e.key] = false);
 
-// --- MAPA ---
-const tileSize = 50;
-const map = [
+// --- MAPA (0=suelo,1=pared) ---
+const tileSize=50;
+const map=[
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,1,1,0,0,0,1,1,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,1,1,1,0,0,1,1,1,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,1,1,1,1,1,0,1,1,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,1,1,0,0,1,1,1,1,0,0,1,1,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -63,100 +79,120 @@ const map = [
 ];
 
 // --- OBJETOS ---
-const items = [
-  {x:100, y:100, w:20, h:20, color:'gold', collected:false},
-  {x:400, y:200, w:20, h:20, color:'red', collected:false},
-  {x:250, y:350, w:20, h:20, color:'purple', collected:false}
+const items=[
+  {x:120,y:100,w:20,h:20,color:'gold',name:'Moneda',collected:false},
+  {x:400,y:200,w:20,h:20,color:'red',name:'Poción',collected:false},
+  {x:250,y:350,w:20,h:20,color:'purple',name:'Llave',collected:false}
+];
+
+// --- NPCS ---
+const npcs=[
+  {x:500,y:100,w:30,h:30,color:'orange',message:'Hola, aventurero! Cuida tu inventario.'},
+  {x:100,y:300,w:30,h:30,color:'pink',message:'Busca objetos para progresar!'}
 ];
 
 // --- FUNCIONES ---
-function drawMap() {
-  for (let y=0; y<map.length; y++){
-    for (let x=0; x<map[y].length; x++){
-      if(map[y][x] === 1){
-        ctx.fillStyle = '#654321';
+function drawMap(){
+  for(let y=0;y<map.length;y++){
+    for(let x=0;x<map[y].length;x++){
+      if(map[y][x]===1){
+        ctx.fillStyle='#654321';
         ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
       }
     }
   }
 }
 
-function drawPlayer() {
-  ctx.fillStyle = player.color;
+function drawPlayer(){
+  ctx.fillStyle=player.color;
   ctx.fillRect(player.x, player.y, player.w, player.h);
 }
 
-function drawItems() {
+function drawItems(){
   for(const item of items){
     if(!item.collected){
-      ctx.fillStyle = item.color;
-      ctx.fillRect(item.x, item.y, item.w, item.h);
+      ctx.fillStyle=item.color;
+      ctx.fillRect(item.x,item.y,item.w,item.h);
     }
   }
 }
 
-function checkCollisions(newX, newY){
-  // Limites del canvas
-  if(newX < 0 || newX + player.w > canvas.width) return true;
-  if(newY < 0 || newY + player.h > canvas.height) return true;
-  
-  // Colisión con paredes
-  for(let y=0; y<map.length; y++){
-    for(let x=0; x<map[y].length; x++){
-      if(map[y][x] === 1){
-        const wallX = x*tileSize;
-        const wallY = y*tileSize;
-        if(newX < wallX + tileSize &&
-           newX + player.w > wallX &&
-           newY < wallY + tileSize &&
-           newY + player.h > wallY){
-          return true;
-        }
+function drawNPCs(){
+  for(const npc of npcs){
+    ctx.fillStyle=npc.color;
+    ctx.fillRect(npc.x,npc.y,npc.w,npc.h);
+  }
+}
+
+function checkCollisions(newX,newY){
+  // limites del canvas
+  if(newX<0||newX+player.w>canvas.width) return true;
+  if(newY<0||newY+player.h>canvas.height) return true;
+  // paredes
+  for(let y=0;y<map.length;y++){
+    for(let x=0;x<map[y].length;x++){
+      if(map[y][x]===1){
+        const wallX=x*tileSize;
+        const wallY=y*tileSize;
+        if(newX<wallX+tileSize &&
+           newX+player.w>wallX &&
+           newY<wallY+tileSize &&
+           newY+player.h>wallY) return true;
       }
     }
   }
   return false;
 }
 
-function updatePlayer() {
-  let newX = player.x;
-  let newY = player.y;
-  
-  if(keys['ArrowUp'] || keys['w']) newY -= player.speed;
-  if(keys['ArrowDown'] || keys['s']) newY += player.speed;
-  if(keys['ArrowLeft'] || keys['a']) newX -= player.speed;
-  if(keys['ArrowRight'] || keys['d']) newX += player.speed;
-  
-  if(!checkCollisions(newX, newY)){
-    player.x = newX;
-    player.y = newY;
-  }
+function updatePlayer(){
+  let newX=player.x;
+  let newY=player.y;
+  if(keys['ArrowUp']||keys['w']) newY-=player.speed;
+  if(keys['ArrowDown']||keys['s']) newY+=player.speed;
+  if(keys['ArrowLeft']||keys['a']) newX-=player.speed;
+  if(keys['ArrowRight']||keys['d']) newX+=player.speed;
+  if(!checkCollisions(newX,newY)){ player.x=newX; player.y=newY; }
 }
 
-function updateItems() {
+function updateItems(){
   for(const item of items){
     if(!item.collected &&
-       player.x < item.x + item.w &&
-       player.x + player.w > item.x &&
-       player.y < item.y + item.h &&
-       player.y + player.h > item.y){
-      item.collected = true;
-      showMessage('¡Objeto recogido!');
-    }
+       player.x<item.x+item.w &&
+       player.x+player.w>item.x &&
+       player.y<item.y+item.h &&
+       player.y+player.h>item.y){
+         item.collected=true;
+         inventory.push(item.name);
+         updateInventory();
+         showMessage('¡Recogiste '+item.name+'!');
+       }
   }
 }
 
-// --- GAME LOOP ---
+function updateNPCs(){
+  for(const npc of npcs){
+    if(player.x< npc.x + npc.w &&
+       player.x+player.w> npc.x &&
+       player.y< npc.y + npc.h &&
+       player.y+player.h> npc.y){
+         showMessage(npc.message);
+       }
+  }
+}
+
+// --- LOOP ---
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawMap();
   drawItems();
+  drawNPCs();
   drawPlayer();
 }
 
 function update(){
   updatePlayer();
   updateItems();
+  updateNPCs();
 }
 
 function gameLoop(){
